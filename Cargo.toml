@@ -1,0 +1,26 @@
+[package]
+name = "pocketflow-rs"
+version = "0.1.0"
+edition = "2024"
+description = "PocketFlow implemented by rust"
+authors = ["Yan Lu <luyanfcp@gmail.com>"]
+license = "MIT"
+
+[lib]
+name = "pocketflow_rs"
+path = "src/lib.rs"
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
+
+
+[dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+rand = "0.8"
