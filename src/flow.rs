@@ -1,4 +1,5 @@
-use crate::{Context, Node, Result};
+use crate::{Context, Node};
+use anyhow::Result;
 use std::sync::Arc;
 use std::collections::HashMap;
 use tracing::info;
@@ -12,14 +13,16 @@ pub struct Transition {
 
 pub struct Flow {
     start_node: Arc<dyn Node>,
+    start_node_name: String,
     nodes: HashMap<String, Arc<dyn Node>>,
     transitions: Vec<Transition>,
 }
 
 impl Flow {
-    pub fn new(start_node: Arc<dyn Node>) -> Self {
+    pub fn new(start_node_name: &str, start_node: Arc<dyn Node>) -> Self {
         Self {
             start_node,
+            start_node_name: start_node_name.to_string(),
             nodes: HashMap::new(),
             transitions: Vec::new(),
         }
@@ -54,21 +57,22 @@ impl Flow {
 
     pub async fn run(&self, mut context: Context) -> Result<()> {
         info!("Starting flow execution");
-        
+
         let mut current_node = self.start_node.clone();
-        let mut current_node_name = "start".to_string();
-        
+        let mut current_node_name = self.start_node_name.clone();
+
         loop {
             let node = current_node.clone();
             node.prepare(&mut context).await?;
-            
+
             let result = node.execute(&context).await?;
-            
+
             let action = node.post_process(&mut context, &result).await?;
-            
+
             if let Some(next_node) = self.get_next_node(&current_node_name, &action) {
                 current_node = next_node;
-                current_node_name = self.transitions
+                current_node_name = self
+                    .transitions
                     .iter()
                     .find(|t| t.from_node == current_node_name && t.action == action)
                     .map(|t| t.to_node.clone())
@@ -78,33 +82,83 @@ impl Flow {
                 break;
             }
         }
-        
+
         info!("Flow execution completed");
         Ok(())
     }
 }
 
+#[allow(dead_code)]
 pub struct BatchFlow {
     flow: Flow,
     batch_size: usize,
 }
 
 impl BatchFlow {
-    pub fn new(start_node: Arc<dyn Node>, batch_size: usize) -> Self {
+    pub fn new(start_node_name: &str, start_node: Arc<dyn Node>, batch_size: usize) -> Self {
         Self {
-            flow: Flow::new(start_node),
+            flow: Flow::new(start_node_name, start_node),
             batch_size,
         }
     }
 
     pub async fn run_batch(&self, contexts: Vec<Context>) -> Result<()> {
-        info!("Starting batch flow execution with {} items", contexts.len());
-        
+        info!(
+            "Starting batch flow execution with {} items",
+            contexts.len()
+        );
+
         for context in contexts {
             self.flow.run(context).await?;
         }
-        
+
         info!("Batch flow execution completed");
         Ok(())
     }
+}
+
+#[macro_export]
+macro_rules! build_flow {
+    (start: ($name: expr, $node:expr)) => {{
+        Flow::new($name, std::sync::Arc::new($node))
+    }};
+
+    (
+        start: ($start_name:expr, $start_node:expr),
+        nodes: [$(($name:expr, $node:expr)),* $(,)?]
+    ) => {{
+        let mut g = Flow::new($start_name, std::sync::Arc::new($start_node));
+        $(
+            g.add_node($name, std::sync::Arc::new($node));
+        )*
+        g
+    }};
+
+    // Complete version with proper-edge handling
+    (
+        start: ($start_name:expr, $start_node:expr),
+        nodes: [$(($name:expr, $node:expr)),* $(,)?],
+        edges: [
+            $($edge:tt),* $(,)?
+        ]
+    ) => {{
+        let mut g = Flow::new($start_name, std::sync::Arc::new($start_node));
+        // Add all nodes first
+        $(
+            g.add_node($name, std::sync::Arc::new($node));
+        )*
+        // Handle edges appropriately
+        $(
+            build_flow!(@edge g, $edge);
+        )*
+        g
+    }};
+
+    (@edge $g:expr, ($from:expr, $to:expr)) => {
+        $g.add_default_transition($from, $to);
+    };
+
+    (@edge $g:expr, ($from:expr, $to:expr, $condition:expr)) => {
+        $g.add_transition($from, $condition, $to);
+    };
 }

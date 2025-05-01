@@ -1,4 +1,5 @@
-use crate::{context::Context, Params, Result};
+use crate::{context::Context, Params};
+use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -18,6 +19,7 @@ pub trait Node: Send + Sync {
     }
 }
 
+#[allow(dead_code)]
 pub struct BaseNode {
     params: Params,
     next_nodes: HashMap<String, Arc<dyn Node>>,

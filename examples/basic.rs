@@ -1,7 +1,7 @@
-use pocketflow_rs::{Context, Flow, Node};
+use pocketflow_rs::{Context, Flow, Node, build_flow};
 use serde_json::Value;
-use std::sync::Arc;
 use rand::Rng;
+use anyhow::Result;
 
 // A simple node that prints a message
 struct PrintNode {
@@ -18,8 +18,8 @@ impl PrintNode {
 
 #[async_trait::async_trait]
 impl Node for PrintNode {
-    async fn execute(&self, context: &Context) -> pocketflow_rs::Result<Value> {
-        println!("PrintNode: {}", self.message);
+    async fn execute(&self, context: &Context) -> Result<Value> {
+        println!("PrintNode: {}, Context: {}", self.message, context);
         Ok(Value::String(self.message.clone()))
     }
 
@@ -39,13 +39,13 @@ impl RandomNumberNode {
 
 #[async_trait::async_trait]
 impl Node for RandomNumberNode {
-    async fn execute(&self, context: &Context) -> pocketflow_rs::Result<Value> {
+    async fn execute(&self, context: &Context) -> Result<Value> {
         let num = rand::thread_rng().gen_range(0..self.max);
-        println!("RandomNumberNode: Generated number {}", num);
+        println!("RandomNumberNode: Generated number {}, Context: {}", num, context);
         Ok(Value::Number(num.into()))
     }
 
-    async fn post_process(&self, context: &mut Context, result: &Value) -> pocketflow_rs::Result<&str> {
+    async fn post_process(&self, context: &mut Context, result: &Value) -> Result<&str> {
         let num = result.as_i64().unwrap_or(0);
         context.set("number", Value::Number(num.into()));
         // Return different actions based on the number
@@ -64,7 +64,7 @@ struct SmallNumberNode;
 
 #[async_trait::async_trait]
 impl Node for SmallNumberNode {
-    async fn execute(&self, context: &Context) -> pocketflow_rs::Result<Value> {
+    async fn execute(&self, context: &Context) -> Result<Value> {
         let num = context.get("number")
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
@@ -78,7 +78,7 @@ struct MediumNumberNode;
 
 #[async_trait::async_trait]
 impl Node for MediumNumberNode {
-    async fn execute(&self, context: &Context) -> pocketflow_rs::Result<Value> {
+    async fn execute(&self, context: &Context) -> Result<Value> {
         let num = context.get("number")
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
@@ -92,7 +92,7 @@ struct LargeNumberNode;
 
 #[async_trait::async_trait]
 impl Node for LargeNumberNode {
-    async fn execute(&self, context: &Context) -> pocketflow_rs::Result<Value> {
+    async fn execute(&self, context: &Context) -> Result<Value> {
         let num = context.get("number")
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
@@ -103,33 +103,33 @@ impl Node for LargeNumberNode {
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
-
     // Create nodes
-    let begin_node = Arc::new(PrintNode::new("Begin Node"));
-    let random_node = Arc::new(RandomNumberNode::new(100));
-    let small_node = Arc::new(SmallNumberNode);
-    let medium_node = Arc::new(MediumNumberNode);
-    let large_node = Arc::new(LargeNumberNode);
+    let begin_node = PrintNode::new("Begin Node");
+    let random_node = RandomNumberNode::new(100);
+    let small_node = SmallNumberNode;
+    let medium_node = MediumNumberNode;
+    let large_node = LargeNumberNode;
     
-    // Create flow with random node as start
-    let mut flow = Flow::new(begin_node);
-    
-  
-    // Add nodes to flow
-    flow.add_node("small", small_node);
-    flow.add_node("medium", medium_node);
-    flow.add_node("large", large_node);
-    flow.add_node("rand", random_node);
-    
-    
-    // Add transitions based on conditions
-    flow.add_default_transition("start", "rand");
-    flow.add_transition("rand", "small", "small");
-    flow.add_transition("rand", "medium", "medium");
-    flow.add_transition("rand", "large", "large");
+
+    // Create flow using macro
+    let flow = build_flow!(
+        start: ("start", begin_node),
+        nodes: [
+            ("rand", random_node),
+            ("small", small_node),
+            ("medium", medium_node),
+            ("large", large_node)
+        ],
+        edges: [
+            ("start", "rand"),
+            ("rand", "small", "small"),
+            ("rand", "medium", "medium"),
+            ("rand", "large", "large"),
+        ]
+    );
     
     // Create context
-    let mut context = Context::new();
+    let context = Context::new();
     
     // Run the flow
     println!("Starting flow execution...");

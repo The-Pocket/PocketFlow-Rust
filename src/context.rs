@@ -1,5 +1,6 @@
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, Clone, Default)]
 pub struct Context {
@@ -74,6 +75,28 @@ impl Context {
 
     pub fn contains_metadata_key(&self, key: &str) -> bool {
         self.metadata.contains_key(key)
+    }
+}
+
+impl fmt::Display for Context {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Context {{")?;
+
+        // Display data
+        writeln!(f, "  data: {{")?;
+        for (key, value) in &self.data {
+            writeln!(f, "    \"{}\": {},", key, value)?;
+        }
+        writeln!(f, "  }},")?;
+
+        // Display metadata
+        writeln!(f, "  metadata: {{")?;
+        for (key, value) in &self.metadata {
+            writeln!(f, "    \"{}\": {},", key, value)?;
+        }
+        writeln!(f, "  }}")?;
+
+        write!(f, "}}")
     }
 }
 
