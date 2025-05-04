@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use qdrant_client::qdrant::Value;
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
 use tracing::info;
@@ -77,5 +76,21 @@ impl WebSearcher for GoogleSearcher {
             .collect();
 
         Ok(results)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[tokio::test]
+    async fn test_e2e_google_searcher() {
+        let searcher = GoogleSearcher::new(
+            env::var("GOOGLE_API_KEY").unwrap(),
+            env::var("GOOGLE_SEARCH_ENGINE_ID").unwrap(),
+        );
+        let results = searcher.search("Beijing's temperature today").await.unwrap();
+        println!("{:?}", results);
     }
 }

@@ -107,7 +107,7 @@ pub struct QdrantDB {
 }
 
 impl QdrantDB {
-    pub async fn new(url: String, api_key: Option<String>, options: VectorDBOptions) -> anyhow::Result<Self> {
+    pub async fn new(url: String, options: VectorDBOptions) -> anyhow::Result<Self> {
         
         let client = Qdrant::from_url(&url).build()?;
         

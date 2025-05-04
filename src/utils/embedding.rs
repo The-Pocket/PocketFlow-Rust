@@ -20,10 +20,11 @@ impl Default for EmbeddingOptions {
 
 #[async_trait]
 pub trait EmbeddingGenerator {
-    async fn generate_embedding(&self, text: &String) -> anyhow::Result<Vec<f64>>;
+    async fn generate_embedding(&self, text: &str) -> anyhow::Result<Vec<f64>>;
     async fn generate_embeddings(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f64>>>;
 }
 
+#[allow(dead_code)]
 pub struct OpenAIEmbeddingGenerator {
     api_key: String,
     options: EmbeddingOptions,
@@ -44,8 +45,8 @@ impl OpenAIEmbeddingGenerator {
 
 #[async_trait]
 impl EmbeddingGenerator for OpenAIEmbeddingGenerator {
-    async fn generate_embedding(&self, text: &String) -> anyhow::Result<Vec<f64>> {
-        let embeds = self.generate_embeddings(&vec![text.clone()]).await?;
+    async fn generate_embedding(&self, text: &str) -> anyhow::Result<Vec<f64>> {
+        let embeds = self.generate_embeddings(&vec![text.to_string()]).await?;
         let result: Vec<f64> = embeds[0].iter().cloned().collect();
         Ok(result)
     }
@@ -68,5 +69,28 @@ impl EmbeddingGenerator for OpenAIEmbeddingGenerator {
     
         
         Ok(result)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+
+    #[tokio::test]
+    async fn test_e2e_embedding_generator() {
+        let generator = OpenAIEmbeddingGenerator::new(
+            &env::var("DASH_SCOPE_API_KEY").unwrap(),
+            "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+            EmbeddingOptions{
+                model: "text-embedding-v3".to_string(),
+                dimensions: Some(64),
+            },
+        );
+        let text = "Hello, world!";
+        let embedding = generator.generate_embedding(&text).await.unwrap();
+        println!("{:?}", embedding);
     }
 }

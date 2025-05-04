@@ -50,18 +50,20 @@ impl TextChunker {
     fn chunk_by_size(&self, text: &str, options: &ChunkingOptions) -> Vec<String> {
         let mut chunks = Vec::new();
         let mut start = 0;
+        let text_size = text.len();
         
-        while start < text.len() {
-            let end = (start + options.chunk_size).min(text.len());
+        while start < text_size {
+            let end = (start + options.chunk_size).min(text_size);
             
             // Try to find a good breaking point (space or punctuation)
             let mut actual_end = end;
-            if actual_end < text.len() {
+            if actual_end < text_size {
                 while actual_end > start && !text[actual_end..].starts_with(char::is_whitespace) {
                     actual_end -= 1;
                 }
+                // If we couldn't find a good breaking point, force a break at the chunk size
                 if actual_end == start {
-                    actual_end = end; // If no good break point found, use the original end
+                    actual_end = end;
                 }
             }
             
@@ -70,7 +72,13 @@ impl TextChunker {
                 chunks.push(chunk);
             }
             
-            start = actual_end.saturating_sub(options.overlap);
+            // Ensure we always advance by at least 1 character to prevent infinite loop
+            let new_start = actual_end.saturating_sub(options.overlap);
+            if new_start <= start {
+                start = actual_end;
+            } else {
+                start = new_start;
+            }
         }
         
         chunks
@@ -208,10 +216,10 @@ mod tests {
         };
         
         let chunks = chunker.chunk_text(text, &options);
-        assert_eq!(chunks.len(), 3);
-        assert!(chunks[0].len() <= 20);
-        assert!(chunks[1].len() <= 20);
-        assert!(chunks[2].len() <= 20);
+        assert_eq!(chunks.len(), 5);
+        for chunk in chunks {
+            assert!(chunk.len() <= 20);
+        }
     }
 
     #[test]
@@ -225,9 +233,10 @@ mod tests {
         };
         
         let chunks = chunker.chunk_text(text, &options);
-        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks.len(), 3);
         assert!(chunks[0].contains("This is a test"));
-        assert!(chunks[1].contains("This is a third test"));
+        assert!(chunks[1].contains("This is another test"));
+        assert!(chunks[2].contains("This is a third test"));
     }
 
     #[test]
@@ -241,8 +250,9 @@ mod tests {
         };
         
         let chunks = chunker.chunk_text(text, &options);
-        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks.len(), 3);
         assert!(chunks[0].contains("This is a test"));
-        assert!(chunks[1].contains("This is a third test"));
+        assert!(chunks[1].contains("This is another test"));
+        assert!(chunks[2].contains("This is a third test"));
     }
 }

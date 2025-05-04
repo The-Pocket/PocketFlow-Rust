@@ -14,11 +14,6 @@ path = "src/lib.rs"
 name = "basic"
 path = "examples/basic.rs"
 
-[[example]]
-name = "openai_test"
-path = "examples/openai_test.rs"
-
-
 [workspace]
 members = [
     "examples/text2sql"
