@@ -15,6 +15,7 @@ pub trait Node: Send + Sync {
 
     #[allow(unused_variables)]
     async fn post_process(&self, context: &mut Context, result: &serde_json::Value) -> Result<&str> {
+        context.set("result", result.clone());
         Ok("default")
     }
 }

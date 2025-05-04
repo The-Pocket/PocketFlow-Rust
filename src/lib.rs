@@ -6,4 +6,4 @@ pub use node::*;
 pub use flow::*;
 pub use context::Context;
 
-pub type Params = std::collections::HashMap<String, serde_json::Value>; 
+pub type Params = std::collections::HashMap<String, serde_json::Value>;
