@@ -49,6 +49,9 @@ impl Node for EmbedDocumentsNode {
             info!("Chunk text len: {:?}", chunk_text.len());
             let embeddings = self.generator.generate_embeddings(&chunk_text).await?;
             info!("Embeddings len: {:?}", embeddings.len());
+            if embeddings.is_empty() {
+                return Err(anyhow::anyhow!("Embeddings array is empty"));
+            }
             info!("First Embeddings: {:?}", embeddings[0]);
 
             embed_result.push(json!(
