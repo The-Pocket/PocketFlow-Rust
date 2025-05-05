@@ -4,103 +4,173 @@ A Rust implementation of [PocketFlow](https://github.com/The-Pocket/PocketFlow),
 
 ## Features
 
-- **Lightweight**: Minimal dependencies, focused on core functionality
-- **Flow-based Programming**: Build complex workflows with simple node connections
-- **Async Support**: Built on top of async/await for efficient execution
-- **Type Safety**: Leverage Rust's type system for robust flow definitions
-- **Macro Support**: Easy flow definition with declarative macros
+- Type-safe state transitions using enums
+- Macro-based flow construction
+- Async node execution and post-processing
+- Batch flow support
+- Custom state management
+- Extensible node system
 
 ## Quick Start
 
-```rust
-use pocketflow_rs::{Context, Flow, Node, build_flow};
-use serde_json::Value;
+### 1. Define Custom States
 
-// Define your nodes
+```rust
+use pocketflow_rs::ProcessState;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum MyState {
+    Success,
+    Failure,
+    Default,
+}
+
+impl ProcessState for MyState {
+    fn is_default(&self) -> bool {
+        matches!(self, MyState::Default)
+    }
+    fn to_condition(&self) -> String {
+        match self {
+            MyState::Success => "success".to_string(),
+            MyState::Failure => "failure".to_string(),
+            MyState::Default => "default".to_string(),
+        }
+    }
+}
+
+impl Default for MyState {
+    fn default() -> Self {
+        MyState::Default
+    }
+}
+```
+
+### 2. Implement Nodes
+
+```rust
+use pocketflow_rs::{Node, ProcessResult, Context};
+use anyhow::Result;
+use async_trait::async_trait;
+
 struct MyNode;
 
-#[async_trait::async_trait]
+#[async_trait]
 impl Node for MyNode {
-    async fn execute(&self, context: &Context) -> pocketflow_rs::Result<Value> {
+    type State = MyState;
+
+    async fn execute(&self, context: &Context) -> Result<serde_json::Value> {
         // Your node logic here
-        Ok(Value::Null)
+        Ok(serde_json::json!({"data": 42}))
     }
-}
 
-// Create and run a flow
-let flow = build_flow!(
-    start: ("start", MyNode),
-    nodes: [
-        ("node1", MyNode),
-        ("node2", MyNode)
-    ],
-    edges: [
-        ("start", "node1"),
-        ("node1", "node2", "condition")
-    ]
-);
-
-let mut context = Context::new();
-flow.run(context).await?;
-```
-
-## Core Concepts
-
-### Node
-
-A `Node` is the basic building block of a flow. It implements the `Node` trait:
-
-```rust
-#[async_trait::async_trait]
-pub trait Node: Send + Sync {
-    async fn execute(&self, context: &Context) -> Result<Value>;
-    async fn prepare(&self, context: &mut Context) -> Result<()> {
-        Ok(())
-    }
-    async fn post_process(&self, context: &mut Context, result: &Value) -> Result<&str> {
-        Ok("default")
+    async fn post_process(
+        &self,
+        context: &mut Context,
+        result: &Result<serde_json::Value>,
+    ) -> Result<ProcessResult<MyState>> {
+        // Your post-processing logic here
+        Ok(ProcessResult::new(MyState::Success, "success".to_string()))
     }
 }
 ```
 
-### Flow
+### 3. Build Flows
 
-A `Flow` represents a directed graph of nodes with transitions between them. It can be created using the `build_flow!` macro:
+```rust
+use pocketflow_rs::{build_flow, Context};
+
+let node1 = MyNode;
+let node2 = MyNode;
+
+let flow = build_flow!(
+    start: ("start", node1),
+    nodes: [("next", node2)],
+    edges: [
+        ("start", "next", MyState::Success)
+    ]
+);
+
+let context = Context::new();
+let result = flow.run(context).await?;
+```
+
+### 4. Batch Processing
+
+```rust
+use pocketflow_rs::build_batch_flow;
+
+let batch_flow = build_batch_flow!(
+    start: ("start", node1),
+    nodes: [("next", node2)],
+    edges: [
+        ("start", "next", MyState::Success)
+    ],
+    batch_size: 10
+);
+
+let contexts = vec![Context::new(); 10];
+batch_flow.run_batch(contexts).await?;
+```
+
+## Advanced Usage
+
+### Custom State Management
+
+Define your own states to control flow transitions:
+
+```rust
+#[derive(Debug, Clone, PartialEq)]
+pub enum WorkflowState {
+    Initialized,
+    Processing,
+    Completed,
+    Error,
+    Default,
+}
+
+impl ProcessState for WorkflowState {
+    fn is_default(&self) -> bool {
+        matches!(self, WorkflowState::Default)
+    }
+    fn to_condition(&self) -> String {
+        match self {
+            WorkflowState::Initialized => "initialized".to_string(),
+            WorkflowState::Processing => "processing".to_string(),
+            WorkflowState::Completed => "completed".to_string(),
+            WorkflowState::Error => "error".to_string(),
+            WorkflowState::Default => "default".to_string(),
+        }
+    }
+}
+```
+
+### Complex Flow Construction
+
+Build complex workflows with multiple nodes and state transitions:
 
 ```rust
 let flow = build_flow!(
-    start: ("start", start_node),
+    start: ("start", node1),
     nodes: [
-        ("node1", node1),
-        ("node2", node2)
+        ("process", node2),
+        ("validate", node3),
+        ("complete", node4)
     ],
     edges: [
-        ("start", "node1"),  // Default transition
-        ("node1", "node2", "condition")  // Conditional transition
+        ("start", "process", WorkflowState::Initialized),
+        ("process", "validate", WorkflowState::Processing),
+        ("validate", "complete", WorkflowState::Completed)
     ]
 );
-```
-
-### Context
-
-The `Context` holds the state that flows through the nodes:
-
-```rust
-let mut context = Context::new();
-context.set("key", Value::String("value".to_string()));
-let value = context.get("key");
 ```
 
 ## Examples
 
-See the `examples` directory for more usage examples:
+Check out the `examples/` directory for more detailed examples:
 
-- `basic.rs`: A simple flow with conditional transitions
+- `basic.rs`: Basic flow with custom states
+- `text2sql/`: Text-to-SQL workflow example
 
 ## License
 
-MIT License - see LICENSE file for details
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. 
+MIT

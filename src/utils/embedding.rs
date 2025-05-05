@@ -52,23 +52,27 @@ impl EmbeddingGenerator for OpenAIEmbeddingGenerator {
     }
 
     async fn generate_embeddings(&self, texts: &[String]) -> anyhow::Result<Vec<Vec<f64>>> {
-        let embedding = EmbeddingsBody { 
-            model: self.options.model.clone(),
-            input: texts.to_vec(),
-            user: None,
-        };
+        // chunked by 10
+        let chunks = texts.chunks(10).collect::<Vec<_>>();
+        let mut results = Vec::new();
+        for chunk in chunks {
+            let embedding = EmbeddingsBody { 
+                model: self.options.model.clone(),
+                input: chunk.to_vec(),
+                user: None,
+            };
 
-        info!("Sending request to OpenAI Embedding API");
-        let response = self.client.embeddings_create(&embedding).unwrap();
-        let data = response.data.unwrap();
-        let result = data.into_iter().map(
-            |x: EmbeddingData|{
-                x.embedding.unwrap()
-            }
-        ).collect();
-    
-        
-        Ok(result)
+            info!("Sending request to OpenAI Embedding API");
+            let response = self.client.embeddings_create(&embedding).unwrap();
+            let data = response.data.unwrap();
+            let result: Vec<Vec<f64>> = data.into_iter().map(
+                |x: EmbeddingData|{
+                    x.embedding.unwrap()
+                }
+            ).collect();
+            results.extend(result);
+        }
+        Ok(results)
     }
 }
 

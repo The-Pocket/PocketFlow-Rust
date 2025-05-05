@@ -107,9 +107,16 @@ pub struct QdrantDB {
 }
 
 impl QdrantDB {
-    pub async fn new(url: String, options: VectorDBOptions) -> anyhow::Result<Self> {
+    pub async fn new(db_url: String, api_key: Option<String>, options: VectorDBOptions) -> anyhow::Result<Self> {
+        let client = match api_key {
+            Some(api_key) => Qdrant::from_url(db_url.as_str())
+                .api_key(api_key)
+                .build()?,
+            None => Qdrant::from_url(db_url.as_str())
+                .build()?,
+        };
         
-        let client = Qdrant::from_url(&url).build()?;
+        
         
         // Create collection if it doesn't exist
         let collections = client.list_collections().await?;

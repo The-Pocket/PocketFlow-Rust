@@ -36,12 +36,15 @@ impl<S: ProcessState + Default> Flow<S> {
         
         while let Some(node) = self.nodes.get(&current_node) {
             // Prepare
+            info!("Preparing node: {}", current_node);
             node.prepare(&mut context).await?;
             
             // Execute
+            info!("Executing node: {}", current_node);
             let result = node.execute(&context).await;
             
             // Post process
+            info!("Post processing node: {}", current_node);
             let process_result = node.post_process(&mut context, &result).await?;
             
             // Find next node based on the state returned by post_process

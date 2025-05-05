@@ -15,7 +15,8 @@ name = "basic"
 path = "examples/basic.rs"
 
 [workspace]
-members = [
+members = [ 
+    "examples/pocketflow-rs-rag",
     "examples/text2sql"
 ]
 
