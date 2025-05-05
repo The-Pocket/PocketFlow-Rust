@@ -62,7 +62,6 @@ impl FileLoaderNode {
     async fn load_from_url(&self, url: &str) -> Result<Document> {
         info!("Loading content from URL: {}", url);
         if url.starts_with("http://") || url.starts_with("https://") {
-            info!("Loading content from URL: {}", url);
             let response = self.client.get(url).send().await?;
             let content_type = response.headers().get("content-type").map(|header| header.to_str().unwrap_or("text/plain"));
             
