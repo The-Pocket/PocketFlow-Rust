@@ -1,0 +1,48 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+## How to create a workflow
+
+### Build Node 
+
+1. Define State(Optional)
+Each node can define different states based on the possible execution of subsequent nodes. If the node logic is simple, it can be directly implemented using BaseState
+
+A example for define state: the SQL executing node can have states such as: execution successful/execution failed SQL error/execution failed connection error. If the execution is successful, the node can proceed to the next stage. If the execution is incorrect, it will jump to generate SQL and regenerate the node. 
+
+```rust
+pub enum SqlExecutorState{
+    SqlSyntaxError,
+    SqlClientError
+    Default, // Success
+}
+```
+
+2. implement trait function.
++ prepare(optional): Sets up necessary preconditions, preprocess the data in context.
++ execute: Performs the main logic and produces a result.
++ post_process(optional): 
+    + Evaluates the execute result, updates the Context.
+    + Return the corresponding state based on the result, allowing the Flow runtime library to determine which node to call next by evaluating the edge conditions.
+    + If the logic of the node is simple enough and does not require post-processing, it can be omitted and the default can be used.
+
+## Build Flow:
+
+You can use rust macro `build_flow` and `build_batch_flow` to create a workflow for LLM.
+
+such as:
+
+```rust
+let flow = build_flow!(
+    start: ("start", node1), // define begin node, node1 is object for Node and 'start' is alias.
+    nodes: [("next", node2)], // define other nodes as start.
+    edges: [
+        ("start", "next", MyState::Default) // start -> next, when start post_process returned state is MyState::Default
+    ]
+);
+```
+
+
+

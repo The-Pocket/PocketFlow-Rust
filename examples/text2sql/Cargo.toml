@@ -1,0 +1,20 @@
+[package]
+name = "text2sql"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "text2sql"
+
+[dependencies]
+duckdb = {version="1.2.2", features = ["bundled"]}
+pocketflow_rs = { path = '../..'}
+serde_json = "1.0.140"
+async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0.98"
+thiserror = "1.0.69"
+openai_api_rust = "0.1.9"
+chrono = "0.4.41"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
