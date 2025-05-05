@@ -1,0 +1,22 @@
+[package]
+name = "pocketflow-rs-rag"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+pocketflow_rs = { path = "../../" }
+anyhow = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+serde_json = "1.0"
+async-trait = "0.1"
+faiss = "0.12.1"
+clap = { version = "4.4", features = ["derive"] }
+pdf-extract = "0.9"
+reqwest = { version = "0.12.15", features = ["json"] }
+uuid = { version = "1.16.0", features = ["v4"] }
+qdrant-client = "1.14.0"
+
+[dev-dependencies]
+tempfile = "3.8"
