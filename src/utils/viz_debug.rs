@@ -12,6 +12,7 @@ impl DebugVisualizer for ConsoleDebugVisualizer {
         format!("{:?}", data)
     }
 
+    #[allow(unused_variables)]
     fn visualize_flow(&self, flow_data: &[u8]) -> String {
         // TODO: Implement flow visualization
         "Flow visualization not implemented".to_string()
@@ -26,6 +27,7 @@ impl DebugVisualizer for GraphDebugVisualizer {
         format!("Graph visualization of {:?}", data)
     }
 
+    #[allow(unused_variables)]
     fn visualize_flow(&self, flow_data: &[u8]) -> String {
         // TODO: Implement flow graph visualization
         "Flow graph visualization not implemented".to_string()

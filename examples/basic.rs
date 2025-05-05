@@ -1,7 +1,36 @@
-use pocketflow_rs::{Context, Flow, Node, build_flow};
+use pocketflow_rs::{Context, Node, ProcessState, ProcessResult, build_flow};
 use serde_json::Value;
 use rand::Rng;
 use anyhow::Result;
+
+#[derive(Debug, Clone, PartialEq)]
+enum NumberState {
+    Small,
+    Medium,
+    Large,
+    Default,
+}
+
+impl ProcessState for NumberState {
+    fn is_default(&self) -> bool {
+        matches!(self, NumberState::Default)
+    }
+
+    fn to_condition(&self) -> String {
+        match self {
+            NumberState::Small => "small".to_string(),
+            NumberState::Medium => "medium".to_string(),
+            NumberState::Large => "large".to_string(),
+            NumberState::Default => "default".to_string(),
+        }
+    }
+}
+
+impl Default for NumberState {
+    fn default() -> Self {
+        NumberState::Default
+    }
+}
 
 // A simple node that prints a message
 struct PrintNode {
@@ -18,13 +47,13 @@ impl PrintNode {
 
 #[async_trait::async_trait]
 impl Node for PrintNode {
+    type State = NumberState;
+
     async fn execute(&self, context: &Context) -> Result<Value> {
         println!("PrintNode: {}, Context: {}", self.message, context);
         Ok(Value::String(self.message.clone()))
     }
-
 }
-
 
 // A node that generates a random number
 struct RandomNumberNode {
@@ -39,23 +68,27 @@ impl RandomNumberNode {
 
 #[async_trait::async_trait]
 impl Node for RandomNumberNode {
+    type State = NumberState;
+
     async fn execute(&self, context: &Context) -> Result<Value> {
         let num = rand::thread_rng().gen_range(0..self.max);
         println!("RandomNumberNode: Generated number {}, Context: {}", num, context);
         Ok(Value::Number(num.into()))
     }
 
-    async fn post_process(&self, context: &mut Context, result: &Value) -> Result<&str> {
-        let num = result.as_i64().unwrap_or(0);
+    async fn post_process(&self, context: &mut Context, result: &Result<Value>) -> Result<ProcessResult<NumberState>> {
+        let num = result.as_ref().unwrap().as_i64().unwrap_or(0);
         context.set("number", Value::Number(num.into()));
-        // Return different actions based on the number
-        if num < self.max / 3 {
-            Ok("small")
+        // Return different states based on the number
+        let state = if num < self.max / 3 {
+            NumberState::Small
         } else if num < 2 * self.max / 3 {
-            Ok("medium")
+            NumberState::Medium
         } else {
-            Ok("large")
-        }
+            NumberState::Large
+        };
+        let condition = state.to_condition();
+        Ok(ProcessResult::new(state, condition))
     }
 }
 
@@ -64,6 +97,8 @@ struct SmallNumberNode;
 
 #[async_trait::async_trait]
 impl Node for SmallNumberNode {
+    type State = NumberState;
+
     async fn execute(&self, context: &Context) -> Result<Value> {
         let num = context.get("number")
             .and_then(|v| v.as_i64())
@@ -78,6 +113,8 @@ struct MediumNumberNode;
 
 #[async_trait::async_trait]
 impl Node for MediumNumberNode {
+    type State = NumberState;
+
     async fn execute(&self, context: &Context) -> Result<Value> {
         let num = context.get("number")
             .and_then(|v| v.as_i64())
@@ -92,6 +129,8 @@ struct LargeNumberNode;
 
 #[async_trait::async_trait]
 impl Node for LargeNumberNode {
+    type State = NumberState;
+
     async fn execute(&self, context: &Context) -> Result<Value> {
         let num = context.get("number")
             .and_then(|v| v.as_i64())
@@ -110,7 +149,6 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let medium_node = MediumNumberNode;
     let large_node = LargeNumberNode;
     
-
     // Create flow using macro
     let flow = build_flow!(
         start: ("start", begin_node),
@@ -121,10 +159,10 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             ("large", large_node)
         ],
         edges: [
-            ("start", "rand"),
-            ("rand", "small", "small"),
-            ("rand", "medium", "medium"),
-            ("rand", "large", "large"),
+            ("start", "rand", NumberState::Default),
+            ("rand", "small", NumberState::Small),
+            ("rand", "medium", NumberState::Medium),
+            ("rand", "large", NumberState::Large)
         ]
     );
     
