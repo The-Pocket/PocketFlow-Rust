@@ -4,8 +4,8 @@ use pocketflow_rs::vector_db::{DistanceMetric, VectorDBOptions};
 use pocketflow_rs::{Context, Node, ProcessResult};
 use pocketflow_rs::utils::vector_db::{QdrantDB, VectorDB};
 use serde_json::Value;
+use tracing::{info, error};
 use std::sync::Arc;
-use qdrant_client::Qdrant;
 use crate::state::RagState;
 
 pub struct RetrieveDocumentNode {
@@ -39,27 +39,17 @@ impl Node for RetrieveDocumentNode {
             })
             .ok_or_else(|| anyhow::anyhow!("No query embedding found in context"))?;
 
-        let results = self.db.search(query_embedding, self.k).await?;
-        if results.is_empty() {
+        let records= self.db.search(query_embedding, self.k).await?;
+        if records.is_empty() {
+            error!("No documents retrieved");
             return Err(anyhow::anyhow!("No documents retrieved"));
         }
 
-        let texts: Vec<String> = results
-            .into_iter()
-            .filter_map(|record| {
-                record
-                    .metadata
-                    .get("text")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-            })
-            .collect();
-
-        if texts.is_empty() {
-            return Err(anyhow::anyhow!("No valid text content in retrieved documents"));
-        }
-
-        Ok(Value::Array(texts.into_iter().map(Value::String).collect()))
+        info!("Retrieved documents line: {:?}", records.len());
+        
+        let result_array: Vec<Value> = records.into_iter().map(|record| record.to_value()).collect();
+        
+        Ok(Value::Array(result_array))
     }
 
     async fn post_process(

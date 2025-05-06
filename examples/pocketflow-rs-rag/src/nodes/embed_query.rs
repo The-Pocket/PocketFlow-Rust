@@ -7,18 +7,19 @@ use std::sync::Arc;
 use crate::state::RagState;
 
 pub struct EmbedQueryNode {
-    query: String,
     generator: Arc<OpenAIEmbeddingGenerator>,
 }
 
 impl EmbedQueryNode {
-    pub fn new(query: String, api_key: String, endpoint: String) -> Self {
+    pub fn new(api_key: String, endpoint: String, model: String, dimension: Option<usize>) -> Self {
         Self {
-            query,
             generator: Arc::new(OpenAIEmbeddingGenerator::new(
                 &api_key,
                 &endpoint,
-                EmbeddingOptions::default(),
+                EmbeddingOptions {
+                    model,
+                    dimensions: dimension,
+                },
             )),
         }
     }
@@ -30,7 +31,8 @@ impl Node for EmbedQueryNode {
 
     #[allow(unused_variables)]
     async fn execute(&self, context: &Context) -> Result<Value> {
-        let embedding = self.generator.generate_embedding(&self.query).await?;
+        let query = context.get("rewritten_query").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let embedding = self.generator.generate_embedding(&query).await?;
         if embedding.is_empty() {
             return Err(anyhow::anyhow!("No embedding generated for query"));
         }

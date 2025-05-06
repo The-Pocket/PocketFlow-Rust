@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use pocketflow_rs::{Context, Node, ProcessResult};
 use pocketflow_rs::utils::llm_wrapper::{OpenAIClient, LLMWrapper};
 use serde_json::Value;
+use tracing::info;
 use std::sync::Arc;
 use crate::state::RagState;
 
@@ -59,6 +60,7 @@ Rewritten Query: `supply chain risk mitigation strategies Europe logistics manag
 Original User Query: \"{}\"
 Rewritten Query:",user_query);
         let response = self.client.generate(&prompt).await?;
+        info!("Query rewritten: {:?}", response.content);
         Ok(Value::String(response.content.replace("`", "")))
     }
 
@@ -69,7 +71,16 @@ Rewritten Query:",user_query);
         context: &mut Context,
         result: &Result<Value>,
     ) -> Result<ProcessResult<RagState>> {
-        Ok(ProcessResult::new(RagState::Default, "query_rewritten".to_string()))
+        return match result {
+            Ok(value) => {
+                context.set("rewritten_query", value.clone());
+                Ok(ProcessResult::new(RagState::Default, "query_rewritten".to_string()))
+            }
+            Err(e) => {
+                info!("Error rewriting query: {:?}", e);
+                Ok(ProcessResult::new(RagState::QueryRewriteError, "query_rewrite_error".to_string()))
+            }
+        }
     }
 
 }

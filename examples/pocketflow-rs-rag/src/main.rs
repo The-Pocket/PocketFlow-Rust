@@ -66,24 +66,20 @@ enum Commands {
     },
     /// Online processing: answer questions based on indexed documents
     Online {
-        /// Question to answer
-        #[arg(short, long)]
-        query: String,
-
         /// Qdrant database URL
-        #[arg(short, long, default_value = "http://localhost:6333")]
+        #[arg(long, default_value = "http://localhost:6333")]
         db_url: String,
 
         /// Collection name in Qdrant
-        #[arg(short, long, default_value = "documents")]
+        #[arg(long, default_value = "documents")]
         collection: String,
 
         /// OpenAI API key
-        #[arg(short, long)]
+        #[arg(long)]
         api_key: String,
 
         /// OpenAI API endpoint
-        #[arg(short, long, default_value = "https://api.openai.com/v1")]
+        #[arg(long, default_value = "https://api.openai.com/v1")]
         endpoint: String,
 
         /// Number of documents to retrieve
@@ -91,25 +87,31 @@ enum Commands {
         k: usize,
 
         /// chat mode
-        #[arg(short, long, default_value = "chat")]
+        #[arg(long, default_value = "chat")]
         chat_mode: String,
 
         /// embedding dimension
-        #[arg(short, long, default_value = "1024")]
+        #[arg(long, default_value = "1024")]
         dimension: usize,
 
         /// Qdrant API key
-        #[arg(short, long)]
+        #[arg(long)]
         qdrant_api_key: Option<String>,
+
+        /// Embedding model
+        #[arg(long, default_value = "text-embedding-ada-002")]
+        embedding_model: String,
+
+        /// Question to answer
+        #[arg(required = true)]
+        query: String,
     },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    FmtSubscriber::builder()
-        .with_max_level(Level::INFO)
-        .init();
+    FmtSubscriber::builder().with_max_level(Level::INFO).init();
 
     match cli.command {
         Commands::Offline {
@@ -168,6 +170,7 @@ async fn main() -> Result<()> {
             chat_mode,
             dimension,
             qdrant_api_key,
+            embedding_model,
         } => {
             let mut context = FlowContext::new();
             context.set("user_query", json!(query.clone()));
@@ -175,8 +178,12 @@ async fn main() -> Result<()> {
             let query_rewrite_node =
                 QueryRewriteNode::new(api_key.clone(), chat_mode.clone(), endpoint.clone());
 
-            let embed_query_node =
-                EmbedQueryNode::new(query.clone(), api_key.clone(), endpoint.clone());
+            let embed_query_node = EmbedQueryNode::new(
+                api_key.clone(),
+                endpoint.clone(),
+                embedding_model.clone(),
+                Some(dimension),
+            );
 
             let retrieve_node = RetrieveDocumentNode::new(
                 db_url,
@@ -205,9 +212,9 @@ async fn main() -> Result<()> {
                 ]
             );
 
-            let result = flow.run(FlowContext::new()).await?;
+            let result = flow.run(context).await?;
 
-            println!("Result: {:?}", result);
+            termimad::print_text(result.as_str().unwrap());
         }
     }
 

@@ -22,6 +22,7 @@ pub enum RagState {
     RetrievalError,
     GenerationError,
     Default,
+    QueryRewriteError,
 }
 
 impl ProcessState for RagState {
@@ -51,6 +52,7 @@ impl ProcessState for RagState {
             RagState::RetrievalError => "retrieval_error".to_string(),
             RagState::GenerationError => "generation_error".to_string(),
             RagState::Default => "default".to_string(),
+            RagState::QueryRewriteError => "query_rewrite_error".to_string(),
         }
     }
 }
