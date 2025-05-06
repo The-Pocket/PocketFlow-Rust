@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use pocketflow_rs::vector_db::VectorRecord;
 use pocketflow_rs::{Context, Node, ProcessResult};
 use pocketflow_rs::utils::llm_wrapper::{OpenAIClient, LLMWrapper};
 use serde_json::Value;
@@ -30,19 +31,26 @@ impl Node for GenerateAnswerNode {
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("No retrieved documents found in context"))?;
 
-        let context_text = retrieved_docs
+        let retrieved_docs_array: Vec<VectorRecord> = retrieved_docs.iter().map(VectorRecord::parse_by_value).collect();
+
+        let retrieved_text_with_meta = retrieved_docs_array
             .iter()
-            .filter_map(|v| v.as_str())
+            .map(|v| format!("{}: {}", v.metadata.get("file_metadata").unwrap().get("url").unwrap().as_str().unwrap(), v.metadata.get("text").unwrap()))
             .collect::<Vec<_>>()
             .join("\n\n");
 
-        if context_text.is_empty() {
+        
+        if retrieved_text_with_meta.is_empty() {
             return Ok(Value::String("I don't know.".to_string()));
         }
 
-        let prompt = format!(
-            "You are a helpful assistant. Based on the following context, please answer the question. If the answer cannot be found in the context, say 'I don't know'.\n\nContext:\n{}\n\nQuestion: {}\n\nAnswer:",
-            context_text,
+        let prompt = format!("
+You are a helpful assistant. Based on the following context, please answer the question. If the answer cannot be found in the context, say 'I don't know'.\n\n
+Output format using markdown and add reference links to the source documents. \n\n
+You can use the following context to answer the question: \n{}\n\n
+Question: {}\n\n
+Answer:",
+        retrieved_text_with_meta,
             self.query
         );
 
@@ -61,7 +69,7 @@ impl Node for GenerateAnswerNode {
     ) -> Result<ProcessResult<RagState>> {
         match result {
             Ok(value) => {
-                context.set("answer", value.clone());
+                context.set("result", value.clone());
                 Ok(ProcessResult::new(
                     RagState::Default,
                     "answer_generated".to_string(),

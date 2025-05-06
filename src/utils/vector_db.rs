@@ -1,11 +1,12 @@
 use async_trait::async_trait;
-use qdrant_client::qdrant::{CreateCollectionBuilder, DeletePointsBuilder, Distance, PointStruct, Query, QueryPointsBuilder, ScoredPoint, UpsertPointsBuilder, VectorParamsBuilder};
 use qdrant_client::Qdrant;
 use qdrant_client::qdrant::{
-    Value as QdrantValue, value::Kind as QdrantKind
+    CreateCollectionBuilder, DeletePointsBuilder, Distance, PointStruct, ScoredPoint,
+    SearchPointsBuilder, UpsertPointsBuilder, VectorParamsBuilder,
 };
+use qdrant_client::qdrant::{Value as QdrantValue, value::Kind as QdrantKind};
 
-use serde_json::{Value as SerdeValue, Map as SerdeMap, Number as SerdeNumber};
+use serde_json::{json, Map as SerdeMap, Number as SerdeNumber, Value as SerdeValue};
 
 use tracing::info;
 
@@ -30,6 +31,23 @@ pub struct VectorRecord {
     pub metadata: serde_json::Map<String, serde_json::Value>,
 }
 
+impl VectorRecord {
+    pub fn parse_by_value(value: &serde_json::Value) -> Self {
+        let id = value.get("id").unwrap().as_str().unwrap().to_string();
+        let vector = value.get("vector").unwrap().as_array().unwrap().iter().map(|v| v.as_f64().unwrap() as f32).collect();
+        let metadata = value.get("metadata").unwrap().as_object().unwrap().clone();
+        Self { id, vector, metadata }
+    }
+
+    pub fn to_value(&self) -> serde_json::Value {
+        json!({
+            "id": self.id,
+            "vector": self.vector,
+            "metadata": self.metadata
+        })
+    }
+}
+
 fn qdrant_value_to_serde_json(q_val: QdrantValue) -> SerdeValue {
     match q_val.kind {
         Some(QdrantKind::NullValue(_)) => SerdeValue::Null,
@@ -43,7 +61,7 @@ fn qdrant_value_to_serde_json(q_val: QdrantValue) -> SerdeValue {
             let serde_list: Vec<SerdeValue> = list_value
                 .values
                 .into_iter()
-                .map(qdrant_value_to_serde_json) 
+                .map(qdrant_value_to_serde_json)
                 .collect();
             SerdeValue::Array(serde_list)
         }
@@ -58,30 +76,26 @@ fn qdrant_value_to_serde_json(q_val: QdrantValue) -> SerdeValue {
     }
 }
 
-
 impl VectorRecord {
-    
     pub fn from_scored_point(point: ScoredPoint) -> Option<Self> {
         let id_str = match point.id {
-            Some(point_id) => match point_id.point_id_options { 
-                 Some(qdrant_client::qdrant::point_id::PointIdOptions::Num(n)) => n.to_string(),
-                 Some(qdrant_client::qdrant::point_id::PointIdOptions::Uuid(s)) => s,
-                 None => return None,
+            Some(point_id) => match point_id.point_id_options {
+                Some(qdrant_client::qdrant::point_id::PointIdOptions::Num(n)) => n.to_string(),
+                Some(qdrant_client::qdrant::point_id::PointIdOptions::Uuid(s)) => s,
+                None => return None,
             },
             None => return None,
         };
-
-        
         let vector_data = match point.vectors {
-            Some(vector) => match vector.vectors_options{
+            Some(vector) => match vector.vectors_options {
                 Some(qdrant_client::qdrant::vectors_output::VectorsOptions::Vector(v)) => v.data,
                 _ => return None,
             },
-            None => return None, 
+            None => return None,
         };
-
         // 3. Convert Payload
-        let metadata_map: SerdeMap<String, SerdeValue> = point.payload
+        let metadata_map: SerdeMap<String, SerdeValue> = point
+            .payload
             .into_iter()
             .map(|(key, q_val)| (key, qdrant_value_to_serde_json(q_val)))
             .collect();
@@ -107,31 +121,33 @@ pub struct QdrantDB {
 }
 
 impl QdrantDB {
-    pub async fn new(db_url: String, api_key: Option<String>, options: VectorDBOptions) -> anyhow::Result<Self> {
+    pub async fn new(
+        db_url: String,
+        api_key: Option<String>,
+        options: VectorDBOptions,
+    ) -> anyhow::Result<Self> {
         let client = match api_key {
-            Some(api_key) => Qdrant::from_url(db_url.as_str())
-                .api_key(api_key)
-                .build()?,
-            None => Qdrant::from_url(db_url.as_str())
-                .build()?,
+            Some(api_key) => Qdrant::from_url(db_url.as_str()).api_key(api_key).build()?,
+            None => Qdrant::from_url(db_url.as_str()).build()?,
         };
-        
-        
-        
+
         // Create collection if it doesn't exist
         let collections = client.list_collections().await?;
-        if !collections.collections.iter().any(|c| c.name == options.collection_name) {
+        if !collections
+            .collections
+            .iter()
+            .any(|c| c.name == options.collection_name)
+        {
             let distance = match options.distance_metric {
                 DistanceMetric::Cosine => Distance::Cosine,
                 DistanceMetric::Euclidean => Distance::Euclid,
                 DistanceMetric::DotProduct => Distance::Dot,
             };
-            let request = CreateCollectionBuilder::new(options.collection_name.clone()).vectors_config(
-                VectorParamsBuilder::new(options.dimension as u64, distance)
-            );
+            let request = CreateCollectionBuilder::new(options.collection_name.clone())
+                .vectors_config(VectorParamsBuilder::new(options.dimension as u64, distance));
             client.create_collection(request).await?;
         }
-        
+
         Ok(Self { client, options })
     }
 }
@@ -139,42 +155,45 @@ impl QdrantDB {
 #[async_trait]
 impl VectorDB for QdrantDB {
     async fn insert(&self, records: Vec<VectorRecord>) -> anyhow::Result<()> {
-        let points: Vec<PointStruct> = records.into_iter().map(|record| {
-            PointStruct::new(
-                record.id,
-                record.vector,
-                record.metadata,
-            )
-        }).collect();
-        let points_request = UpsertPointsBuilder::new(
-            &self.options.collection_name,
-            points,
-        );
-        
+        let points: Vec<PointStruct> = records
+            .into_iter()
+            .map(|record| PointStruct::new(record.id, record.vector, record.metadata))
+            .collect();
+        let points_request = UpsertPointsBuilder::new(&self.options.collection_name, points);
+
         info!("Inserting points into Qdrant");
         self.client.upsert_points(points_request).await?;
         Ok(())
     }
 
     async fn search(&self, query: Vec<f32>, k: usize) -> anyhow::Result<Vec<VectorRecord>> {
-        
-        info!("Searching points in Qdrant");
-        let response = self.client.query(QueryPointsBuilder::new(&self.options.collection_name).query(
-            Query::new_nearest(
-                query
+        info!(
+            "Searching points in Qdrant, collection: {}",
+            self.options.collection_name
+        );
+        let response = self
+            .client
+            .search_points(
+                SearchPointsBuilder::new(&self.options.collection_name, query, k as u64)
+                    .with_payload(true)
+                    .with_vectors(true),
             )
-        ).limit(k as u64)).await?;
-        
-        let results = response.result.into_iter().filter_map(VectorRecord::from_scored_point).collect();
-        
+            .await?;
+        let results = response
+            .result
+            .into_iter()
+            .filter_map(VectorRecord::from_scored_point)
+            .collect::<Vec<_>>();
+        info!("Retrieved results len: {:?}", results.len());
+
         Ok(results)
     }
 
     async fn delete(&self, ids: Vec<String>) -> anyhow::Result<()> {
         info!("Deleting points from Qdrant");
-        self.client.delete_points(
-            DeletePointsBuilder::new(&self.options.collection_name).points(ids)
-        ).await?;
+        self.client
+            .delete_points(DeletePointsBuilder::new(&self.options.collection_name).points(ids))
+            .await?;
         Ok(())
     }
 }

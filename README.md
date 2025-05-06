@@ -168,8 +168,9 @@ let flow = build_flow!(
 
 Check out the `examples/` directory for more detailed examples:
 
-- `basic.rs`: Basic flow with custom states
-- `text2sql/`: Text-to-SQL workflow example
+- basic.rs: Basic flow with custom states
+- text2sql: Text-to-SQL workflow example
+- [pocketflow-rs-rag](./examples/pocketflow-rs-rag/README.md): Retrieval-Augmented Generation (RAG) workflow example
 
 ## License
 
