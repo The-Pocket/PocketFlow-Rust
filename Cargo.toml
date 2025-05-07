@@ -29,7 +29,16 @@ serde_json = "1.0"
 thiserror = "1.0"
 tracing = "0.1"
 rand = "0.8"
-openai_api_rust = "0.1.9"
+openai_api_rust = { version = "0.1.9", optional = true}
 regex = "1.11.1"
-qdrant-client = "1.14.0"
-reqwest = { version = "0.12", features = ["json"] }
+qdrant-client = {version = "1.14.0", optional = true}
+reqwest = { version = "0.12", features = ["json"], optional = true }
+
+[features]
+openai = ["dep:openai_api_rust"]
+websearch = ["dep:reqwest"]
+qdrant = ["dep:qdrant-client"]
+debug = []
+default = [
+    "openai",
+]

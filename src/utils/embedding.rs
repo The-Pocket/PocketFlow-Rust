@@ -1,3 +1,5 @@
+#![cfg(feature = "openai")]
+
 use async_trait::async_trait;
 use openai_api_rust::*;
 use openai_api_rust::embeddings::*;
@@ -84,6 +86,7 @@ mod tests {
 
 
     #[tokio::test]
+    #[ignore = "E2E case, requires API keys"]
     async fn test_e2e_embedding_generator() {
         let generator = OpenAIEmbeddingGenerator::new(
             &env::var("DASH_SCOPE_API_KEY").unwrap(),

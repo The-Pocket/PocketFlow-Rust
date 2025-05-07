@@ -1,4 +1,6 @@
-# PocketFlow-rs
+<div align="center">
+  <img src="./static/pocketflow_rust_title.png" alt="Pocket Flow – 100-line minimalist LLM framework" width="400"/>
+</div>
 
 A Rust implementation of [PocketFlow](https://github.com/The-Pocket/PocketFlow), a minimalist flow-based programming framework.
 
@@ -12,6 +14,12 @@ A Rust implementation of [PocketFlow](https://github.com/The-Pocket/PocketFlow),
 - Extensible node system
 
 ## Quick Start
+
+### 0. Setup
+
+```bash
+cargo add pocketflow_rs
+```
 
 ### 1. Define Custom States
 
@@ -159,9 +167,32 @@ let flow = build_flow!(
     edges: [
         ("start", "process", WorkflowState::Initialized),
         ("process", "validate", WorkflowState::Processing),
+        ("validate", "process", WorkflowState::Error),
         ("validate", "complete", WorkflowState::Completed)
     ]
 );
+```
+
+## Available Features
+
+The following features are available: (feature for [utility_function](https://the-pocket.github.io/PocketFlow/utility_function/))
+
+- `openai` (default): Enable OpenAI API integration for LLM capabilities
+- `websearch`: Enable web search functionality using Google Custom Search API
+- `qdrant`: Enable vector database integration using Qdrant
+- `debug`: Enable additional debug logging and information
+
+To use specific features, add them to your `Cargo.toml`:
+
+```toml
+[dependencies]
+pocketflow_rs = { version = "0.1.0", features = ["openai", "websearch"] }
+```
+
+Or use them in the command line:
+
+```bash
+cargo add pocketflow_rs --features "openai websearch"
 ```
 
 ## Examples

@@ -1,3 +1,5 @@
+#![cfg(feature = "qdrant")]
+
 use async_trait::async_trait;
 use qdrant_client::Qdrant;
 use qdrant_client::qdrant::{

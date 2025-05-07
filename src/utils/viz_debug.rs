@@ -1,3 +1,4 @@
+#![cfg(feature = "debug")]
 use std::fmt::Debug;
 
 pub trait DebugVisualizer {
