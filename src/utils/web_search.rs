@@ -1,3 +1,5 @@
+#![cfg(feature = "websearch")]
+
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
@@ -85,6 +87,7 @@ mod tests {
     use std::env;
 
     #[tokio::test]
+    #[ignore = "E2E case, requires API keys"]
     async fn test_e2e_google_searcher() {
         let searcher = GoogleSearcher::new(
             env::var("GOOGLE_API_KEY").unwrap(),

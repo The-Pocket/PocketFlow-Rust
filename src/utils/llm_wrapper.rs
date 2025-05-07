@@ -1,3 +1,5 @@
+#![cfg(feature = "openai")]
+
 use std::{collections::HashMap, hash::RandomState};
 
 use async_trait::async_trait;
