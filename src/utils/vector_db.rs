@@ -8,7 +8,7 @@ use qdrant_client::qdrant::{
 };
 use qdrant_client::qdrant::{Value as QdrantValue, value::Kind as QdrantKind};
 
-use serde_json::{json, Map as SerdeMap, Number as SerdeNumber, Value as SerdeValue};
+use serde_json::{Map as SerdeMap, Number as SerdeNumber, Value as SerdeValue, json};
 
 use tracing::info;
 
@@ -36,9 +36,20 @@ pub struct VectorRecord {
 impl VectorRecord {
     pub fn parse_by_value(value: &serde_json::Value) -> Self {
         let id = value.get("id").unwrap().as_str().unwrap().to_string();
-        let vector = value.get("vector").unwrap().as_array().unwrap().iter().map(|v| v.as_f64().unwrap() as f32).collect();
+        let vector = value
+            .get("vector")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap() as f32)
+            .collect();
         let metadata = value.get("metadata").unwrap().as_object().unwrap().clone();
-        Self { id, vector, metadata }
+        Self {
+            id,
+            vector,
+            metadata,
+        }
     }
 
     pub fn to_value(&self) -> serde_json::Value {

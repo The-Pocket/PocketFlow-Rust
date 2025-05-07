@@ -1,10 +1,10 @@
+use crate::state::RagState;
 use anyhow::Result;
 use async_trait::async_trait;
+use pocketflow_rs::utils::text_chunking::{ChunkingOptions, ChunkingStrategy, TextChunker};
 use pocketflow_rs::{Context, Node, ProcessResult};
-use pocketflow_rs::utils::text_chunking::{TextChunker, ChunkingOptions, ChunkingStrategy};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tracing::info;
-use crate::state::RagState;
 
 pub struct ChunkDocumentsNode {
     chunker: TextChunker,
@@ -33,12 +33,19 @@ impl Node for ChunkDocumentsNode {
             .get("documents")
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("No documents found in context"))?;
-        
+
         let mut chunks_meta = Vec::new();
         for doc_map in documents {
-            let content = doc_map.get("content").and_then(|v| v.as_str()).ok_or_else(|| anyhow::anyhow!("No content found in document"))?;
+            let content = doc_map
+                .get("content")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow::anyhow!("No content found in document"))?;
             let chunks = self.chunker.chunk_text(content, &self.options);
-            info!("Process: {:?}, Chunks lens: {:?}", doc_map.get("metadata").unwrap(), chunks.len());
+            info!(
+                "Process: {:?}, Chunks lens: {:?}",
+                doc_map.get("metadata").unwrap(),
+                chunks.len()
+            );
             chunks_meta.push(json!({
                 "chunks": chunks,
                 "metadata": doc_map.get("metadata").unwrap_or(&Value::Null),
@@ -67,4 +74,4 @@ impl Node for ChunkDocumentsNode {
             )),
         }
     }
-} 
+}

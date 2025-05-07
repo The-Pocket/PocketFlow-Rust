@@ -1,15 +1,15 @@
+use crate::state::RagState;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use pdf_extract::extract_text;
 use pocketflow_rs::{Context as FlowContext, Node, ProcessResult};
-use serde_json::{json, Value};
-use tracing::info;
+use reqwest::Client;
+use serde_json::{Value, json};
+use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use crate::state::RagState;
-use reqwest::Client;
 use std::time::SystemTime;
-use pdf_extract::extract_text;
-use std::fs;
+use tracing::info;
 
 #[derive(Debug)]
 struct Document {
@@ -62,8 +62,11 @@ impl FileLoaderNode {
         info!("Loading content from URL: {}", url);
         if url.starts_with("http://") || url.starts_with("https://") {
             let response = self.client.get(url).send().await?;
-            let content_type = response.headers().get("content-type").map(|header| header.to_str().unwrap_or("text/plain"));
-            
+            let content_type = response
+                .headers()
+                .get("content-type")
+                .map(|header| header.to_str().unwrap_or("text/plain"));
+
             let mut file_type = "web";
             let content = match content_type {
                 Some("text/plain") => response.text().await?,
@@ -99,9 +102,11 @@ impl Node for FileLoaderNode {
     #[allow(unused_variables)]
     async fn execute(&self, context: &FlowContext) -> Result<Value> {
         let mut documents = Vec::new();
-        
+
         for url in &self.urls {
-            let doc = self.load_from_url(url).await
+            let doc = self
+                .load_from_url(url)
+                .await
                 .with_context(|| format!("Failed to load content from URL: {}", url))?;
             info!("Document loaded: {:?}", doc.metadata);
             documents.push(json!({
@@ -150,19 +155,19 @@ mod tests {
         // Create a temporary directory
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.txt");
-        
+
         // Create a test text file
         let mut file = File::create(&file_path).unwrap();
         writeln!(file, "Hello, World!").unwrap();
-        
+
         // Test loading the text file
         let loader = FileLoaderNode::new(vec![file_path.to_str().unwrap().to_string()]);
         let result = loader.execute(&FlowContext::new()).await.unwrap();
-        
+
         // Verify the result
         let documents = result.as_array().unwrap();
         assert_eq!(documents.len(), 1);
-        
+
         let doc = &documents[0];
         assert_eq!(doc["content"].as_str().unwrap(), "Hello, World!\n");
         assert_eq!(doc["metadata"]["file_type"].as_str().unwrap(), "text");
@@ -171,24 +176,23 @@ mod tests {
     #[tokio::test]
     async fn test_load_multiple_files() {
         let dir = tempdir().unwrap();
-        
+
         let text_path = dir.path().join("test.txt");
         let mut text_file = File::create(&text_path).unwrap();
         writeln!(text_file, "Text content").unwrap();
-        
-        
+
         let urls = vec![
             text_path.to_str().unwrap().to_string(),
             "https://pdfobject.com/pdf/sample.pdf".to_string(),
         ];
-        
+
         let loader = FileLoaderNode::new(urls);
         let result = loader.execute(&FlowContext::new()).await;
-        
+
         if let Ok(result) = result {
             let documents = result.as_array().unwrap();
             assert!(documents.len() > 0);
-            
+
             for doc in documents {
                 assert!(doc["content"].is_string());
                 assert!(doc["metadata"]["url"].is_string());
@@ -203,15 +207,19 @@ mod tests {
     async fn test_invalid_file_type() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("test.xyz");
-        
+
         let mut file = File::create(&file_path).unwrap();
         writeln!(file, "Some content").unwrap();
-        
+
         let loader = FileLoaderNode::new(vec![file_path.to_str().unwrap().to_string()]);
         let result = loader.execute(&FlowContext::new()).await;
-        
+
         assert!(result.is_err());
         let error = result.unwrap_err();
-        assert!(error.to_string().contains("Failed to load content from URL"));
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to load content from URL")
+        );
     }
 }

@@ -1,11 +1,11 @@
+use crate::state::RagState;
 use anyhow::Result;
 use async_trait::async_trait;
+use pocketflow_rs::utils::llm_wrapper::{LLMWrapper, OpenAIClient};
 use pocketflow_rs::{Context, Node, ProcessResult};
-use pocketflow_rs::utils::llm_wrapper::{OpenAIClient, LLMWrapper};
 use serde_json::Value;
-use tracing::info;
 use std::sync::Arc;
-use crate::state::RagState;
+use tracing::info;
 
 pub struct QueryRewriteNode {
     client: Arc<OpenAIClient>,
@@ -64,7 +64,6 @@ Rewritten Query:",user_query);
         Ok(Value::String(response.content.replace("`", "")))
     }
 
-
     #[allow(unused_variables)]
     async fn post_process(
         &self,
@@ -74,13 +73,18 @@ Rewritten Query:",user_query);
         return match result {
             Ok(value) => {
                 context.set("rewritten_query", value.clone());
-                Ok(ProcessResult::new(RagState::Default, "query_rewritten".to_string()))
+                Ok(ProcessResult::new(
+                    RagState::Default,
+                    "query_rewritten".to_string(),
+                ))
             }
             Err(e) => {
                 info!("Error rewriting query: {:?}", e);
-                Ok(ProcessResult::new(RagState::QueryRewriteError, "query_rewrite_error".to_string()))
+                Ok(ProcessResult::new(
+                    RagState::QueryRewriteError,
+                    "query_rewrite_error".to_string(),
+                ))
             }
-        }
+        };
     }
-
 }

@@ -1,13 +1,14 @@
-use pocketflow_rs::{Context, Node, ProcessState, ProcessResult, build_flow};
-use serde_json::Value;
-use rand::Rng;
 use anyhow::Result;
+use pocketflow_rs::{Context, Node, ProcessResult, ProcessState, build_flow};
+use rand::Rng;
+use serde_json::Value;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 enum NumberState {
     Small,
     Medium,
     Large,
+    #[default]
     Default,
 }
 
@@ -23,12 +24,6 @@ impl ProcessState for NumberState {
             NumberState::Large => "large".to_string(),
             NumberState::Default => "default".to_string(),
         }
-    }
-}
-
-impl Default for NumberState {
-    fn default() -> Self {
-        NumberState::Default
     }
 }
 
@@ -72,11 +67,18 @@ impl Node for RandomNumberNode {
 
     async fn execute(&self, context: &Context) -> Result<Value> {
         let num = rand::thread_rng().gen_range(0..self.max);
-        println!("RandomNumberNode: Generated number {}, Context: {}", num, context);
+        println!(
+            "RandomNumberNode: Generated number {}, Context: {}",
+            num, context
+        );
         Ok(Value::Number(num.into()))
     }
 
-    async fn post_process(&self, context: &mut Context, result: &Result<Value>) -> Result<ProcessResult<NumberState>> {
+    async fn post_process(
+        &self,
+        context: &mut Context,
+        result: &Result<Value>,
+    ) -> Result<ProcessResult<NumberState>> {
         let num = result.as_ref().unwrap().as_i64().unwrap_or(0);
         context.set("number", Value::Number(num.into()));
         // Return different states based on the number
@@ -100,9 +102,7 @@ impl Node for SmallNumberNode {
     type State = NumberState;
 
     async fn execute(&self, context: &Context) -> Result<Value> {
-        let num = context.get("number")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let num = context.get("number").and_then(|v| v.as_i64()).unwrap_or(0);
         println!("SmallNumberNode: Processing small number {}", num);
         Ok(Value::String(format!("Small number processed: {}", num)))
     }
@@ -116,9 +116,7 @@ impl Node for MediumNumberNode {
     type State = NumberState;
 
     async fn execute(&self, context: &Context) -> Result<Value> {
-        let num = context.get("number")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let num = context.get("number").and_then(|v| v.as_i64()).unwrap_or(0);
         println!("MediumNumberNode: Processing medium number {}", num);
         Ok(Value::String(format!("Medium number processed: {}", num)))
     }
@@ -132,9 +130,7 @@ impl Node for LargeNumberNode {
     type State = NumberState;
 
     async fn execute(&self, context: &Context) -> Result<Value> {
-        let num = context.get("number")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        let num = context.get("number").and_then(|v| v.as_i64()).unwrap_or(0);
         println!("LargeNumberNode: Processing large number {}", num);
         Ok(Value::String(format!("Large number processed: {}", num)))
     }
@@ -148,7 +144,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let small_node = SmallNumberNode;
     let medium_node = MediumNumberNode;
     let large_node = LargeNumberNode;
-    
+
     // Create flow using macro
     let flow = build_flow!(
         start: ("start", begin_node),
@@ -165,14 +161,14 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             ("rand", "large", NumberState::Large)
         ]
     );
-    
+
     // Create context
     let context = Context::new();
-    
+
     // Run the flow
     println!("Starting flow execution...");
     flow.run(context).await?;
     println!("Flow execution completed!");
-    
+
     Ok(())
 }

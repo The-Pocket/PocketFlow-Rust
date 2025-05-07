@@ -2,10 +2,8 @@ use std::env;
 
 use anyhow::Result;
 use duckdb::Connection;
-use pocketflow_rs::{build_flow, Context};
+use pocketflow_rs::{Context, build_flow};
 use text2sql::flow::{ExecuteSQLNode, OpenAISQLGenerationNode, SchemaRetrievalNode};
-
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -30,7 +28,8 @@ async fn main() -> Result<()> {
     user_query = user_query.trim().to_string();
 
     let schema_retrieval = SchemaRetrievalNode::new(db_path.to_string());
-    let openai_sql_gen = OpenAISQLGenerationNode::new(env::var("DASH_SCOPE_API_KEY").unwrap(), user_query);
+    let openai_sql_gen =
+        OpenAISQLGenerationNode::new(env::var("DASH_SCOPE_API_KEY").unwrap(), user_query);
     let execute_sql = ExecuteSQLNode::new(db_path.to_string());
 
     let flow = build_flow! (

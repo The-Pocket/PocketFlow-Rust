@@ -61,4 +61,4 @@ impl Default for RagState {
     fn default() -> Self {
         RagState::Default
     }
-} 
+}

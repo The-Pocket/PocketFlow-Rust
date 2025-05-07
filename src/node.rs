@@ -1,4 +1,4 @@
-use crate::{context::Context, Params};
+use crate::{Params, context::Context};
 use anyhow::Result;
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -9,10 +9,11 @@ pub trait ProcessState: Send + Sync {
     fn to_condition(&self) -> String;
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum BaseState {
     Success,
     Failure,
+    #[default]
     Default,
 }
 
@@ -30,13 +31,6 @@ impl ProcessState for BaseState {
     }
 }
 
-impl Default for BaseState {
-    fn default() -> Self {
-        BaseState::Default
-    }
-}
-
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProcessResult<S: ProcessState> {
     pub state: S,
@@ -47,8 +41,10 @@ impl<S: ProcessState> ProcessResult<S> {
     pub fn new(state: S, message: String) -> Self {
         Self { state, message }
     }
+}
 
-    pub fn default() -> Self where S: Default {
+impl<S: ProcessState + Default> Default for ProcessResult<S> {
+    fn default() -> Self {
         Self {
             state: S::default(),
             message: "default".to_string(),
@@ -68,7 +64,11 @@ pub trait Node: Send + Sync {
     async fn execute(&self, context: &Context) -> Result<serde_json::Value>;
 
     #[allow(unused_variables)]
-    async fn post_process(&self, context: &mut Context, result: &Result<serde_json::Value>) -> Result<ProcessResult<Self::State>> {
+    async fn post_process(
+        &self,
+        context: &mut Context,
+        result: &Result<serde_json::Value>,
+    ) -> Result<ProcessResult<Self::State>> {
         match result {
             Ok(value) => {
                 context.set("result", value.clone());
@@ -140,4 +140,4 @@ impl Node for BatchNode {
     }
 }
 
-impl BaseNodeTrait for BatchNode {} 
+impl BaseNodeTrait for BatchNode {}

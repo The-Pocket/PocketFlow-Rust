@@ -1,8 +1,8 @@
 #![cfg(feature = "websearch")]
 
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,7 +15,11 @@ pub struct SearchResult {
 #[async_trait]
 pub trait WebSearcher {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<SearchResult>>;
-    async fn search_with_options(&self, query: &str, options: SearchOptions) -> anyhow::Result<Vec<SearchResult>>;
+    async fn search_with_options(
+        &self,
+        query: &str,
+        options: SearchOptions,
+    ) -> anyhow::Result<Vec<SearchResult>>;
 }
 
 #[derive(Debug, Clone, Default)]
@@ -44,10 +48,15 @@ impl GoogleSearcher {
 #[async_trait]
 impl WebSearcher for GoogleSearcher {
     async fn search(&self, query: &str) -> anyhow::Result<Vec<SearchResult>> {
-        self.search_with_options(query, SearchOptions::default()).await
+        self.search_with_options(query, SearchOptions::default())
+            .await
     }
 
-    async fn search_with_options(&self, query: &str, options: SearchOptions) -> anyhow::Result<Vec<SearchResult>> {
+    async fn search_with_options(
+        &self,
+        query: &str,
+        options: SearchOptions,
+    ) -> anyhow::Result<Vec<SearchResult>> {
         let mut url = format!(
             "https://www.googleapis.com/customsearch/v1?key={}&cx={}&q={}",
             self.api_key, self.search_engine_id, query
@@ -93,7 +102,10 @@ mod tests {
             env::var("GOOGLE_API_KEY").unwrap(),
             env::var("GOOGLE_SEARCH_ENGINE_ID").unwrap(),
         );
-        let results = searcher.search("Beijing's temperature today").await.unwrap();
+        let results = searcher
+            .search("Beijing's temperature today")
+            .await
+            .unwrap();
         println!("{:?}", results);
     }
 }

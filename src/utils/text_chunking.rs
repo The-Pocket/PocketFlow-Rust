@@ -30,6 +30,12 @@ pub struct TextChunker {
     paragraph_regex: Regex,
 }
 
+impl Default for TextChunker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TextChunker {
     pub fn new() -> Self {
         Self {
@@ -51,10 +57,10 @@ impl TextChunker {
         let mut chunks = Vec::new();
         let mut start = 0;
         let text_size = text.len();
-        
+
         while start < text_size {
             let end = (start + options.chunk_size).min(text_size);
-            
+
             // Try to find a good breaking point (space or punctuation)
             let mut actual_end = end;
             if actual_end < text_size {
@@ -66,12 +72,12 @@ impl TextChunker {
                     actual_end = end;
                 }
             }
-            
+
             let chunk = text[start..actual_end].trim().to_string();
             if !chunk.is_empty() {
                 chunks.push(chunk);
             }
-            
+
             // Ensure we always advance by at least 1 character to prevent infinite loop
             let new_start = actual_end.saturating_sub(options.overlap);
             if new_start <= start {
@@ -80,21 +86,21 @@ impl TextChunker {
                 start = new_start;
             }
         }
-        
+
         chunks
     }
 
     fn chunk_by_sentence(&self, text: &str, options: &ChunkingOptions) -> Vec<String> {
         let mut chunks = Vec::new();
         let mut current_chunk = String::new();
-        
+
         for sentence in self.sentence_regex.split(text) {
             let sentence = sentence.trim();
             if sentence.is_empty() {
                 continue;
             }
-            
-            if current_chunk.len() + sentence.len() + 1 <= options.chunk_size {
+
+            if current_chunk.len() + sentence.len() < options.chunk_size {
                 if !current_chunk.is_empty() {
                     current_chunk.push(' ');
                 }
@@ -106,26 +112,27 @@ impl TextChunker {
                 current_chunk = sentence.to_string();
             }
         }
-        
+
         if !current_chunk.is_empty() {
             chunks.push(current_chunk);
         }
-        
+
         // Add overlap between chunks
         if options.overlap > 0 && chunks.len() > 1 {
             let mut overlapped_chunks = Vec::with_capacity(chunks.len());
             overlapped_chunks.push(chunks[0].clone());
-            
+
             for i in 1..chunks.len() {
-                let prev_chunk = &chunks[i-1];
+                let prev_chunk = &chunks[i - 1];
                 let current_chunk = &chunks[i];
-                
+
                 // Find the last sentence in the previous chunk
-                let last_sentences: Vec<&str> = self.sentence_regex
+                let last_sentences: Vec<&str> = self
+                    .sentence_regex
                     .split(prev_chunk)
                     .filter(|s| !s.trim().is_empty())
                     .collect();
-                
+
                 if let Some(last_sentence) = last_sentences.last() {
                     let mut new_chunk = last_sentence.trim().to_string();
                     new_chunk.push(' ');
@@ -135,23 +142,23 @@ impl TextChunker {
                     overlapped_chunks.push(current_chunk.clone());
                 }
             }
-            
+
             chunks = overlapped_chunks;
         }
-        
+
         chunks
     }
 
     fn chunk_by_paragraph(&self, text: &str, options: &ChunkingOptions) -> Vec<String> {
         let mut chunks = Vec::new();
         let mut current_chunk = String::new();
-        
+
         for paragraph in self.paragraph_regex.split(text) {
             let paragraph = paragraph.trim();
             if paragraph.is_empty() {
                 continue;
             }
-            
+
             if current_chunk.len() + paragraph.len() + 2 <= options.chunk_size {
                 if !current_chunk.is_empty() {
                     current_chunk.push_str("\n\n");
@@ -164,26 +171,27 @@ impl TextChunker {
                 current_chunk = paragraph.to_string();
             }
         }
-        
+
         if !current_chunk.is_empty() {
             chunks.push(current_chunk);
         }
-        
+
         // Add overlap between chunks
         if options.overlap > 0 && chunks.len() > 1 {
             let mut overlapped_chunks = Vec::with_capacity(chunks.len());
             overlapped_chunks.push(chunks[0].clone());
-            
+
             for i in 1..chunks.len() {
-                let prev_chunk = &chunks[i-1];
+                let prev_chunk = &chunks[i - 1];
                 let current_chunk = &chunks[i];
-                
+
                 // Find the last paragraph in the previous chunk
-                let last_paragraphs: Vec<&str> = self.paragraph_regex
+                let last_paragraphs: Vec<&str> = self
+                    .paragraph_regex
                     .split(prev_chunk)
                     .filter(|p| !p.trim().is_empty())
                     .collect();
-                
+
                 if let Some(last_paragraph) = last_paragraphs.last() {
                     let mut new_chunk = last_paragraph.trim().to_string();
                     new_chunk.push_str("\n\n");
@@ -193,10 +201,10 @@ impl TextChunker {
                     overlapped_chunks.push(current_chunk.clone());
                 }
             }
-            
+
             chunks = overlapped_chunks;
         }
-        
+
         chunks
     }
 }
@@ -214,7 +222,7 @@ mod tests {
             overlap: 5,
             strategy: ChunkingStrategy::FixedSize,
         };
-        
+
         let chunks = chunker.chunk_text(text, &options);
         assert_eq!(chunks.len(), 5);
         for chunk in chunks {
@@ -231,7 +239,7 @@ mod tests {
             overlap: 10,
             strategy: ChunkingStrategy::Sentence,
         };
-        
+
         let chunks = chunker.chunk_text(text, &options);
         assert_eq!(chunks.len(), 3);
         assert!(chunks[0].contains("This is a test"));
@@ -248,7 +256,7 @@ mod tests {
             overlap: 10,
             strategy: ChunkingStrategy::Paragraph,
         };
-        
+
         let chunks = chunker.chunk_text(text, &options);
         assert_eq!(chunks.len(), 3);
         assert!(chunks[0].contains("This is a test"));

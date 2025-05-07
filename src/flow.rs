@@ -1,4 +1,7 @@
-use crate::{context::Context, node::{Node, ProcessState}};
+use crate::{
+    context::Context,
+    node::{Node, ProcessState},
+};
 use anyhow::Result;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -15,7 +18,7 @@ impl<S: ProcessState + Default> Flow<S> {
     pub fn new(start_node_name: &str, start_node: Arc<dyn Node<State = S>>) -> Self {
         let mut nodes = HashMap::new();
         nodes.insert(start_node_name.to_string(), start_node);
-        
+
         Self {
             nodes,
             edges: HashMap::new(),
@@ -28,56 +31,65 @@ impl<S: ProcessState + Default> Flow<S> {
     }
 
     pub fn add_edge(&mut self, from: &str, to: &str, condition: S) {
-        self.edges.entry(from.to_string()).or_insert_with(Vec::new).push((to.to_string(), condition.to_condition()));
+        self.edges
+            .entry(from.to_string())
+            .or_default()
+            .push((to.to_string(), condition.to_condition()));
     }
-    
+
     pub async fn run(&self, mut context: Context) -> Result<Value> {
         let mut current_node = self.start_node.clone();
-        
+
         while let Some(node) = self.nodes.get(&current_node) {
             // Prepare
             info!("Preparing node: {}", current_node);
             node.prepare(&mut context).await?;
-            
+
             // Execute
             info!("Executing node: {}", current_node);
             let result = node.execute(&context).await;
-            
+
             // Post process
             info!("Post processing node: {}", current_node);
             let process_result = node.post_process(&mut context, &result).await?;
-            
+
             // Find next node based on the state returned by post_process
             if let Some(edges) = self.edges.get(&current_node) {
                 // Get the condition from the node state
                 let condition = process_result.state.to_condition();
-                
+
                 // Try to find an edge matching the condition
-                let next_node_info = edges.iter().find(|(_, edge_condition)| {
-                    edge_condition == &condition
-                });
+                let next_node_info = edges
+                    .iter()
+                    .find(|(_, edge_condition)| edge_condition == &condition);
 
                 if let Some((next, _)) = next_node_info {
                     current_node = next.clone();
                 } else {
                     // If no matching edge found, try the default condition
-                    let default_edge = edges.iter().find(|(_, edge_condition)| {
-                        edge_condition == "default"
-                    });
+                    let default_edge = edges
+                        .iter()
+                        .find(|(_, edge_condition)| edge_condition == "default");
 
                     if let Some((next, _)) = default_edge {
                         current_node = next.clone();
                     } else {
-                        info!("No edge found for node '{}' with condition '{}'. Stopping flow.", current_node, condition);
+                        info!(
+                            "No edge found for node '{}' with condition '{}'. Stopping flow.",
+                            current_node, condition
+                        );
                         break;
                     }
                 }
             } else {
-                info!("Node '{}' has no outgoing edges. Stopping flow.", current_node);
+                info!(
+                    "Node '{}' has no outgoing edges. Stopping flow.",
+                    current_node
+                );
                 break;
             }
         }
-        
+
         Ok(context.get("result").unwrap_or(&Value::Null).clone())
     }
 }
@@ -89,7 +101,11 @@ pub struct BatchFlow<S: ProcessState + Default> {
 }
 
 impl<S: ProcessState + Default> BatchFlow<S> {
-    pub fn new(start_node_name: &str, start_node: Arc<dyn Node<State = S>>, batch_size: usize) -> Self {
+    pub fn new(
+        start_node_name: &str,
+        start_node: Arc<dyn Node<State = S>>,
+        batch_size: usize,
+    ) -> Self {
         Self {
             flow: Flow::new(start_node_name, start_node),
             batch_size,
@@ -197,15 +213,17 @@ macro_rules! build_batch_flow {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::{Node, ProcessState, ProcessResult};
-    use serde_json::json;
+    use crate::node::{Node, ProcessResult, ProcessState};
     use async_trait::async_trait;
+    use serde_json::json;
 
     #[derive(Debug, Clone, PartialEq)]
     #[allow(dead_code)]
+    #[derive(Default)]
     enum CustomState {
         Success,
         Failure,
+        #[default]
         Default,
     }
 
@@ -220,12 +238,6 @@ mod tests {
                 CustomState::Failure => "failure".to_string(),
                 CustomState::Default => "default".to_string(),
             }
-        }
-    }
-
-    impl Default for CustomState {
-        fn default() -> Self {
-            CustomState::Default
         }
     }
 
@@ -248,7 +260,11 @@ mod tests {
             Ok(self.result.clone())
         }
 
-        async fn post_process(&self, context: &mut Context, result: &Result<Value>) -> Result<ProcessResult<CustomState>> {
+        async fn post_process(
+            &self,
+            context: &mut Context,
+            result: &Result<Value>,
+        ) -> Result<ProcessResult<CustomState>> {
             match result {
                 Ok(value) => {
                     context.set("result", value.clone());
@@ -292,20 +308,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_flow() {
-        let node1 = TestNode::new(
-            json!({"data": "test1"}),
-            CustomState::Success,
-        );
-        let node2 = TestNode::new(
-            json!({"data": "test2"}),
-            CustomState::Default,
-        );
-        
+        let node1 = TestNode::new(json!({"data": "test1"}), CustomState::Success);
+        let node2 = TestNode::new(json!({"data": "test2"}), CustomState::Default);
+
         let mut batch_flow = BatchFlow::<CustomState>::new("start", Arc::new(node1), 10);
         batch_flow.flow.add_node("next", Arc::new(node2));
-        batch_flow.flow.add_edge("start", "next", CustomState::Success);
-        batch_flow.flow.add_edge("next", "end", CustomState::Default);
-        
+        batch_flow
+            .flow
+            .add_edge("start", "next", CustomState::Success);
+        batch_flow
+            .flow
+            .add_edge("next", "end", CustomState::Default);
+
         let contexts = vec![Context::new(), Context::new()];
         batch_flow.run_batch(contexts).await.unwrap();
     }
@@ -313,10 +327,7 @@ mod tests {
     #[tokio::test]
     async fn test_build_flow_macro() {
         // Test basic flow with start node only
-        let node1 = TestNode::new(
-            json!({"data": "test1"}),
-            CustomState::Success,
-        );
+        let node1 = TestNode::new(json!({"data": "test1"}), CustomState::Success);
         let flow1 = build_flow!(
             start: ("start", node1)
         );
@@ -325,18 +336,9 @@ mod tests {
         assert_eq!(result, json!({"data": "test1"}));
 
         // Test flow with multiple nodes
-        let node1 = TestNode::new(
-            json!({"data": "test1"}),
-            CustomState::Success,
-        );
-        let node2 = TestNode::new(
-            json!({"data": "test2"}),
-            CustomState::Default,
-        );
-        let end_node = TestNode::new(
-            json!({"final_result": "finished"}),
-            CustomState::Default,
-        );
+        let node1 = TestNode::new(json!({"data": "test1"}), CustomState::Success);
+        let node2 = TestNode::new(json!({"data": "test2"}), CustomState::Default);
+        let end_node = TestNode::new(json!({"final_result": "finished"}), CustomState::Default);
         let flow2 = build_flow!(
             start: ("start", node1),
             nodes: [("next", node2), ("end", end_node)],
@@ -350,14 +352,8 @@ mod tests {
         assert_eq!(result, json!({"final_result": "finished"}));
 
         // Test flow with default edges
-        let node1 = TestNode::new(
-            json!({"data": "test1"}),
-            CustomState::Success,
-        );
-        let node2 = TestNode::new(
-            json!({"data": "test2"}),
-            CustomState::Default,
-        );
+        let node1 = TestNode::new(json!({"data": "test1"}), CustomState::Success);
+        let node2 = TestNode::new(json!({"data": "test2"}), CustomState::Default);
         let flow3 = build_flow!(
             start: ("start", node1),
             nodes: [("next", node2)],

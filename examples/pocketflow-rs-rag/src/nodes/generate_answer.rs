@@ -1,11 +1,11 @@
+use crate::state::RagState;
 use anyhow::Result;
 use async_trait::async_trait;
+use pocketflow_rs::utils::llm_wrapper::{LLMWrapper, OpenAIClient};
 use pocketflow_rs::vector_db::VectorRecord;
 use pocketflow_rs::{Context, Node, ProcessResult};
-use pocketflow_rs::utils::llm_wrapper::{OpenAIClient, LLMWrapper};
 use serde_json::Value;
 use std::sync::Arc;
-use crate::state::RagState;
 
 pub struct GenerateAnswerNode {
     client: Arc<OpenAIClient>,
@@ -31,15 +31,29 @@ impl Node for GenerateAnswerNode {
             .and_then(|v| v.as_array())
             .ok_or_else(|| anyhow::anyhow!("No retrieved documents found in context"))?;
 
-        let retrieved_docs_array: Vec<VectorRecord> = retrieved_docs.iter().map(VectorRecord::parse_by_value).collect();
+        let retrieved_docs_array: Vec<VectorRecord> = retrieved_docs
+            .iter()
+            .map(VectorRecord::parse_by_value)
+            .collect();
 
         let retrieved_text_with_meta = retrieved_docs_array
             .iter()
-            .map(|v| format!("{}: {}", v.metadata.get("file_metadata").unwrap().get("url").unwrap().as_str().unwrap(), v.metadata.get("text").unwrap()))
+            .map(|v| {
+                format!(
+                    "{}: {}",
+                    v.metadata
+                        .get("file_metadata")
+                        .unwrap()
+                        .get("url")
+                        .unwrap()
+                        .as_str()
+                        .unwrap(),
+                    v.metadata.get("text").unwrap()
+                )
+            })
             .collect::<Vec<_>>()
             .join("\n\n");
 
-        
         if retrieved_text_with_meta.is_empty() {
             return Ok(Value::String("I don't know.".to_string()));
         }
@@ -81,4 +95,4 @@ Answer:",
             )),
         }
     }
-} 
+}

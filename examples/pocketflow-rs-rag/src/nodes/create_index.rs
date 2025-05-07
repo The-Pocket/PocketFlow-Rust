@@ -1,26 +1,32 @@
+use crate::state::RagState;
 use anyhow::Result;
 use async_trait::async_trait;
+use pocketflow_rs::utils::vector_db::{
+    DistanceMetric, QdrantDB, VectorDB, VectorDBOptions, VectorRecord,
+};
 use pocketflow_rs::{Context, Node, ProcessResult};
-use pocketflow_rs::utils::vector_db::{QdrantDB, VectorDBOptions, DistanceMetric, VectorRecord, VectorDB};
 use serde_json::Value;
 use std::sync::Arc;
-use crate::state::RagState;
 
 pub struct CreateIndexNode {
     db: Arc<QdrantDB>,
 }
 
 impl CreateIndexNode {
-    pub async fn new(db_url: String, api_key: Option<String>, collection: String, dimension: usize, distance_metric: DistanceMetric) -> Result<Self> {
+    pub async fn new(
+        db_url: String,
+        api_key: Option<String>,
+        collection: String,
+        dimension: usize,
+        distance_metric: DistanceMetric,
+    ) -> Result<Self> {
         let options = VectorDBOptions {
             collection_name: collection,
             dimension,
             distance_metric,
         };
         let db = QdrantDB::new(db_url, api_key, options).await?;
-        Ok(Self {
-            db: Arc::new(db),
-        })
+        Ok(Self { db: Arc::new(db) })
     }
 }
 
@@ -36,10 +42,16 @@ impl Node for CreateIndexNode {
 
         let mut records = Vec::new();
         for chunk_embedding in chunks_embeddings {
-            let chunks = chunk_embedding.get("chunks").and_then(|v| v.as_array()).ok_or_else(|| anyhow::anyhow!("No chunks found in document"))?;
-            let embeddings = chunk_embedding.get("embeddings").and_then(|v| v.as_array()).ok_or_else(|| anyhow::anyhow!("No embeddings found in document"))?;
+            let chunks = chunk_embedding
+                .get("chunks")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| anyhow::anyhow!("No chunks found in document"))?;
+            let embeddings = chunk_embedding
+                .get("embeddings")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| anyhow::anyhow!("No embeddings found in document"))?;
             let metadata = chunk_embedding.get("metadata").unwrap_or(&Value::Null);
-            
+
             let chunks_size = chunks.len();
             for i in 0..chunks_size {
                 let chunk = chunks[i].to_string();
@@ -59,12 +71,15 @@ impl Node for CreateIndexNode {
                 });
             }
         }
-        
+
         if records.is_empty() {
             return Err(anyhow::anyhow!("No valid records to insert"));
         }
 
-        self.db.insert(records).await.map_err(|e| anyhow::anyhow!("Failed to insert records: {}", e))?;
+        self.db
+            .insert(records)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to insert records: {}", e))?;
         Ok(Value::Null)
     }
 
@@ -85,4 +100,4 @@ impl Node for CreateIndexNode {
             )),
         }
     }
-} 
+}

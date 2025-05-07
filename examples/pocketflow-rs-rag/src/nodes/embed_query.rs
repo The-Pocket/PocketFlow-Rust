@@ -1,10 +1,12 @@
+use crate::state::RagState;
 use anyhow::Result;
 use async_trait::async_trait;
+use pocketflow_rs::utils::embedding::{
+    EmbeddingGenerator, EmbeddingOptions, OpenAIEmbeddingGenerator,
+};
 use pocketflow_rs::{Context, Node, ProcessResult};
-use pocketflow_rs::utils::embedding::{OpenAIEmbeddingGenerator, EmbeddingOptions, EmbeddingGenerator};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
-use crate::state::RagState;
 
 pub struct EmbedQueryNode {
     generator: Arc<OpenAIEmbeddingGenerator>,
@@ -31,16 +33,17 @@ impl Node for EmbedQueryNode {
 
     #[allow(unused_variables)]
     async fn execute(&self, context: &Context) -> Result<Value> {
-        let query = context.get("rewritten_query").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let query = context
+            .get("rewritten_query")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let embedding = self.generator.generate_embedding(&query).await?;
         if embedding.is_empty() {
             return Err(anyhow::anyhow!("No embedding generated for query"));
         }
         Ok(Value::Array(
-            embedding
-                .into_iter()
-                .map(|x| json!(x))
-                .collect(),
+            embedding.into_iter().map(|x| json!(x)).collect(),
         ))
     }
 
@@ -63,4 +66,4 @@ impl Node for EmbedQueryNode {
             )),
         }
     }
-} 
+}

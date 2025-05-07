@@ -5,7 +5,7 @@ use duckdb::types::ValueRef;
 use duckdb::{Connection, Result as DuckResult};
 use openai_api_rust::chat::*;
 use openai_api_rust::*;
-use pocketflow_rs::{Context, Node, ProcessState, ProcessResult};
+use pocketflow_rs::{Context, Node, ProcessResult, ProcessState};
 use serde_json::{Value, json};
 use tracing::{error, info};
 
@@ -105,7 +105,10 @@ impl Node for SchemaRetrievalNode {
         result: &Result<Value>,
     ) -> Result<ProcessResult<SqlExecutorState>> {
         context.set("result", result.as_ref().unwrap().clone());
-        Ok(ProcessResult::new(SqlExecutorState::SchemaRetrieved, "schema_retrieved".to_string()))
+        Ok(ProcessResult::new(
+            SqlExecutorState::SchemaRetrieved,
+            "schema_retrieved".to_string(),
+        ))
     }
 }
 
@@ -177,13 +180,14 @@ impl Node for OpenAISQLGenerationNode {
     type State = SqlExecutorState;
 
     async fn execute(&self, context: &Context) -> Result<Value> {
-        let schema = context
-            .get("result")
-            .ok_or_else(|| WorkflowError::NodeExecution("Failed to get database schema".to_string()))?;
+        let schema = context.get("result").ok_or_else(|| {
+            WorkflowError::NodeExecution("Failed to get database schema".to_string())
+        })?;
 
         let system_prompt = "You are a SQL expert. Based on the provided database schema and user query, generate the correct SQL query. Only return the SQL query, do not include any explanation or other text. The condition content uses English, you can choose to query some fields first, then make a general query.";
 
-        let schema_json = serde_json::to_string_pretty(schema).context("Failed to serialize database schema")?;
+        let schema_json =
+            serde_json::to_string_pretty(schema).context("Failed to serialize database schema")?;
 
         let user_prompt = format!(
             "database schema:\n{}\n\nuser query:\n{}\n\nPlease generate a SQL query to answer this question.",
@@ -235,7 +239,10 @@ impl Node for OpenAISQLGenerationNode {
         result: &Result<Value>,
     ) -> Result<ProcessResult<SqlExecutorState>> {
         context.set("result", result.as_ref().unwrap().clone());
-        Ok(ProcessResult::new(SqlExecutorState::SqlGenerated, "sql_generated".to_string()))
+        Ok(ProcessResult::new(
+            SqlExecutorState::SqlGenerated,
+            "sql_generated".to_string(),
+        ))
     }
 }
 
@@ -259,13 +266,15 @@ impl Node for ExecuteSQLNode {
         let sql = context
             .get("result")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| WorkflowError::NodeExecution("SQL query not found in context".to_string()))?;
+            .ok_or_else(|| {
+                WorkflowError::NodeExecution("SQL query not found in context".to_string())
+            })?;
 
         info!("ExecuteSQLNode: Get Sql: {}", sql);
 
         let mut stmt = conn.prepare(sql)?;
         let mut rows = stmt.query([])?;
-        
+
         let mut headers = Vec::new();
         let mut data_rows = Vec::new();
 
@@ -292,7 +301,7 @@ impl Node for ExecuteSQLNode {
                     ValueRef::Date32(d) => {
                         let date = NaiveDate::from_num_days_from_ce_opt(d as i32 + 719163).unwrap();
                         date.format("%Y-%m-%d").to_string()
-                    },
+                    }
                     _ => format!("Unsupported: {:?}", value_ref),
                 };
                 row_values.push(string_value);
@@ -316,9 +325,10 @@ impl Node for ExecuteSQLNode {
                         ValueRef::Text(bytes) => String::from_utf8_lossy(bytes).to_string(),
                         ValueRef::Blob(_) => "[BLOB]".to_string(),
                         ValueRef::Date32(d) => {
-                            let date = NaiveDate::from_num_days_from_ce_opt(d as i32 + 719163).unwrap();
+                            let date =
+                                NaiveDate::from_num_days_from_ce_opt(d as i32 + 719163).unwrap();
                             date.format("%Y-%m-%d").to_string()
-                        },
+                        }
                         _ => format!("Unsupported: {:?}", value_ref),
                     };
                     row_values.push(string_value);
@@ -341,6 +351,9 @@ impl Node for ExecuteSQLNode {
         result: &Result<Value>,
     ) -> Result<ProcessResult<SqlExecutorState>> {
         context.set("result", result.as_ref().unwrap().clone());
-        Ok(ProcessResult::new(SqlExecutorState::SqlExecuted, "sql_executed".to_string()))
+        Ok(ProcessResult::new(
+            SqlExecutorState::SqlExecuted,
+            "sql_executed".to_string(),
+        ))
     }
 }
