@@ -4,6 +4,8 @@
 
 A Rust implementation of [PocketFlow](https://github.com/The-Pocket/PocketFlow), a minimalist flow-based programming framework.
 
+📋 [Get started quickly with our template →](#template)
+
 ## Features
 
 - Type-safe state transitions using enums
@@ -202,6 +204,10 @@ Check out the `examples/` directory for more detailed examples:
 - basic.rs: Basic flow with custom states
 - text2sql: Text-to-SQL workflow example
 - [pocketflow-rs-rag](./examples/pocketflow-rs-rag/README.md): Retrieval-Augmented Generation (RAG) workflow example
+
+## Template
+
+Fork the [PocketFlow-Template-Rust](https://github.com/The-Pocket/PocketFlow-Template-Rust) repository and use it as a template for your own project.
 
 ## License
 
